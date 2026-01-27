@@ -1,0 +1,23 @@
+[tool.black]
+line-length = 88
+target-version = ['py311']
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | migrations
+  | __pycache__
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip_gitignore = true
+known_django = "django"
+sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--cov=apps --cov-report=html --cov-report=term-missing"
