@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: petkeep_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=petkeep_db
+      - POSTGRES_USER=petkeep_user
+      - POSTGRES_PASSWORD=petkeep_password
+    ports:
+      - "5432:5432"
+    networks:
+      - petkeep_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petkeep_user -d petkeep_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: petkeep_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8080:8000"
+    env_file:
+      - .env
+    environment:
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=petkeep_db
+      - DB_USER=petkeep_user
+      - DB_PASSWORD=petkeep_password
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - petkeep_network
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
+
+networks:
+  petkeep_network:
+    driver: bridge
