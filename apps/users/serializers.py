@@ -1,9 +1,117 @@
+from typing import Any, Dict, Optional
 from rest_framework import serializers
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from drf_spectacular.utils import extend_schema_field
 from .models import User, Customer, PetSitter, AnimalType, ServiceType
 
+
+# ============================================================================
+# AUTHENTICATION SERIALIZERS
+# ============================================================================
+
+class LoginSerializer(serializers.Serializer):
+    """Serializer for user login."""
+    
+    email = serializers.EmailField(
+        required=True,
+        error_messages={
+            'required': 'Email is required.',
+            'invalid': 'Enter a valid email address.'
+        }
+    )
+    
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'required': 'Password is required.',
+            'blank': 'Password cannot be blank.'
+        }
+    )
+    
+    def validate(self, attrs):
+        """Authenticate user credentials."""
+        email = attrs.get('email', '').lower()
+        password = attrs.get('password')
+        
+        if email and password:
+            user = authenticate(
+                request=self.context.get('request'),
+                username=email,
+                password=password
+            )
+            
+            if not user:
+                raise serializers.ValidationError(
+                    'Unable to log in with provided credentials.'
+                )
+            
+            if not user.is_active:
+                raise serializers.ValidationError(
+                    'User account is disabled.'
+                )
+            
+            attrs['user'] = user
+            return attrs
+        
+        raise serializers.ValidationError(
+            'Must include "email" and "password".'
+        )
+
+
+class UserSerializer(serializers.ModelSerializer):
+    """Serializer for authenticated user information."""
+    
+    profile_type = serializers.SerializerMethodField()
+    profile_data = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'full_name', 'phone', 'user_type',
+            'is_active', 'profile_type', 'profile_data',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'email', 'user_type', 'created_at', 'updated_at']
+    
+    @extend_schema_field(serializers.CharField())
+    def get_profile_type(self, obj: User) -> str:
+        """Return the type of profile (customer or petsitter)."""
+        return obj.user_type
+    
+    @extend_schema_field(serializers.DictField())
+    def get_profile_data(self, obj: User) -> Optional[Dict[str, Any]]:
+        """Return profile-specific data based on user type."""
+        if obj.user_type == 'customer':
+            try:
+                customer = obj.customer_profile
+                return {
+                    'id': customer.user.id,
+                    'created_at': customer.created_at,
+                    'updated_at': customer.updated_at
+                }
+            except Customer.DoesNotExist:
+                return None
+        
+        elif obj.user_type == 'petsitter':
+            try:
+                petsitter = obj.petsitter_profile
+                from .serializers import PetSitterSerializer
+                # Use the full serializer for petsitters
+                return PetSitterSerializer(petsitter).data
+            except PetSitter.DoesNotExist:
+                return None
+        
+        return None
+
+
+# ============================================================================
+# CUSTOMER SERIALIZERS
+# ============================================================================
 
 class CustomerSignupSerializer(serializers.Serializer):
     """Serializer for customer signup/registration."""

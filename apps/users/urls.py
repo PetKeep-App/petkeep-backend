@@ -1,5 +1,8 @@
 from django.urls import path
 from .views import (
+    LoginView,
+    LogoutView,
+    CurrentUserView,
     CustomerSignupView,
     CustomerListView,
     CustomerDetailView,
@@ -16,6 +19,11 @@ from .views import (
 app_name = 'users'
 
 urlpatterns = [
+    # Authentication endpoints
+    path('auth/login/', LoginView.as_view(), name='login'),
+    path('auth/logout/', LogoutView.as_view(), name='logout'),
+    path('auth/me/', CurrentUserView.as_view(), name='current-user'),
+    
     # Customer endpoints
     path('customers/signup/', CustomerSignupView.as_view(), name='customer-signup'),
     path('customers/', CustomerListView.as_view(), name='customer-list'),
