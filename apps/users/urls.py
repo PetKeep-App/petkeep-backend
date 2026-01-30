@@ -5,7 +5,12 @@ from .views import (
     CustomerDetailView,
     CustomerUpdateView,
     CustomerDeleteView,
-    ChangePasswordView
+    ChangePasswordView,
+    PetSitterSignupView,
+    PetSitterListView,
+    PetSitterDetailView,
+    PetSitterUpdateView,
+    PetSitterDeleteView
 )
 
 app_name = 'users'
@@ -19,8 +24,10 @@ urlpatterns = [
     path('customers/<int:user_id>/delete/', CustomerDeleteView.as_view(), name='customer-delete'),
     path('customers/change-password/', ChangePasswordView.as_view(), name='customer-change-password'),
     
-    # PetSitter endpoints (to be implemented in the future)
-    # path('petsitters/signup/', PetSitterSignupView.as_view(), name='petsitter-signup'),
-    # path('petsitters/', PetSitterListView.as_view(), name='petsitter-list'),
-    # path('petsitters/<int:user_id>/', PetSitterDetailView.as_view(), name='petsitter-detail'),
+    # PetSitter endpoints
+    path('petsitters/signup/', PetSitterSignupView.as_view(), name='petsitter-signup'),
+    path('petsitters/', PetSitterListView.as_view(), name='petsitter-list'),
+    path('petsitters/<int:user_id>/', PetSitterDetailView.as_view(), name='petsitter-detail'),
+    path('petsitters/<int:user_id>/update/', PetSitterUpdateView.as_view(), name='petsitter-update'),
+    path('petsitters/<int:user_id>/delete/', PetSitterDeleteView.as_view(), name='petsitter-delete'),
 ]

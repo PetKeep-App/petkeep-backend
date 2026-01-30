@@ -8,9 +8,12 @@ from .serializers import (
     CustomerSignupSerializer, 
     CustomerSerializer, 
     CustomerUpdateSerializer,
-    ChangePasswordSerializer
+    ChangePasswordSerializer,
+    PetSitterSignupSerializer,
+    PetSitterSerializer,
+    PetSitterUpdateSerializer
 )
-from .models import Customer, User
+from .models import Customer, User, PetSitter
 
 
 class CustomerSignupView(generics.CreateAPIView):
@@ -287,4 +290,247 @@ class ChangePasswordView(generics.GenericAPIView):
         return Response(
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+# ============================================================================
+# PETSITTER VIEWS
+# ============================================================================
+
+class PetSitterSignupView(generics.CreateAPIView):
+    """
+    API endpoint for petsitter registration.
+    
+    Allows new petsitters to sign up by providing their information.
+    No authentication is required for this endpoint.
+    """
+    
+    serializer_class = PetSitterSignupSerializer
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary="Register a new petsitter",
+        description="Create a new petsitter account with the provided information.",
+        request=PetSitterSignupSerializer,
+        responses={
+            201: OpenApiResponse(
+                response=PetSitterSerializer,
+                description="PetSitter successfully created"
+            ),
+            400: OpenApiResponse(
+                description="Bad request - validation errors"
+            )
+        },
+        tags=['PetSitters']
+    )
+    def post(self, request, *args, **kwargs):
+        """Handle petsitter signup POST request."""
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            petsitter = serializer.save()
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+        
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class PetSitterListView(generics.ListAPIView):
+    """
+    API endpoint for listing all petsitters.
+    
+    Requires authentication. Returns a paginated list of all petsitters.
+    """
+    
+    serializer_class = PetSitterSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = PetSitter.objects.select_related('user').prefetch_related(
+        'animal_types', 'service_types'
+    ).all()
+    
+    @extend_schema(
+        summary="List all petsitters",
+        description="Retrieve a paginated list of all registered petsitters.",
+        responses={
+            200: OpenApiResponse(
+                response=PetSitterSerializer(many=True),
+                description="List of petsitters"
+            )
+        },
+        tags=['PetSitters']
+    )
+    def get(self, request, *args, **kwargs):
+        """Handle GET request for petsitter list."""
+        return super().get(request, *args, **kwargs)
+
+
+class PetSitterDetailView(generics.RetrieveAPIView):
+    """
+    API endpoint for retrieving a specific petsitter.
+    
+    Requires authentication. Returns details of a single petsitter.
+    """
+    
+    serializer_class = PetSitterSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = PetSitter.objects.select_related('user').prefetch_related(
+        'animal_types', 'service_types'
+    ).all()
+    lookup_field = 'user_id'
+    
+    @extend_schema(
+        summary="Get petsitter details",
+        description="Retrieve detailed information about a specific petsitter.",
+        responses={
+            200: OpenApiResponse(
+                response=PetSitterSerializer,
+                description="PetSitter details"
+            ),
+            404: OpenApiResponse(
+                description="PetSitter not found"
+            )
+        },
+        tags=['PetSitters']
+    )
+    def get(self, request, *args, **kwargs):
+        """Handle GET request for petsitter detail."""
+        return super().get(request, *args, **kwargs)
+
+
+class PetSitterUpdateView(generics.UpdateAPIView):
+    """
+    API endpoint for updating petsitter information.
+    
+    Requires authentication. Petsitters can only update their own information.
+    """
+    
+    serializer_class = PetSitterUpdateSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = PetSitter.objects.select_related('user').prefetch_related(
+        'animal_types', 'service_types'
+    ).all()
+    lookup_field = 'user_id'
+    
+    def get_object(self):
+        """Ensure users can only update their own profile."""
+        petsitter_id = self.kwargs.get('user_id')
+        petsitter = get_object_or_404(PetSitter, user_id=petsitter_id)
+        
+        # Check if user is updating their own profile or is staff
+        if petsitter.user.id != self.request.user.id and not self.request.user.is_staff:
+            self.permission_denied(
+                self.request,
+                message="You don't have permission to update this petsitter."
+            )
+        
+        return petsitter
+    
+    @extend_schema(
+        summary="Update petsitter information",
+        description="Update petsitter profile information.",
+        request=PetSitterUpdateSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=PetSitterSerializer,
+                description="PetSitter updated successfully"
+            ),
+            400: OpenApiResponse(
+                description="Bad request - validation errors"
+            ),
+            403: OpenApiResponse(
+                description="Forbidden - can only update own profile"
+            ),
+            404: OpenApiResponse(
+                description="PetSitter not found"
+            )
+        },
+        tags=['PetSitters']
+    )
+    def put(self, request, *args, **kwargs):
+        """Handle PUT request for petsitter update."""
+        return self.update(request, *args, **kwargs)
+    
+    @extend_schema(
+        summary="Partially update petsitter information",
+        description="Partially update petsitter profile information.",
+        request=PetSitterUpdateSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=PetSitterSerializer,
+                description="PetSitter updated successfully"
+            ),
+            400: OpenApiResponse(
+                description="Bad request - validation errors"
+            ),
+            403: OpenApiResponse(
+                description="Forbidden - can only update own profile"
+            ),
+            404: OpenApiResponse(
+                description="PetSitter not found"
+            )
+        },
+        tags=['PetSitters']
+    )
+    def patch(self, request, *args, **kwargs):
+        """Handle PATCH request for petsitter partial update."""
+        return self.partial_update(request, *args, **kwargs)
+
+
+class PetSitterDeleteView(generics.DestroyAPIView):
+    """
+    API endpoint for deleting/deactivating a petsitter.
+    
+    Requires authentication. Performs soft delete by setting is_active to False.
+    """
+    
+    permission_classes = [IsAuthenticated]
+    queryset = PetSitter.objects.select_related('user').all()
+    lookup_field = 'user_id'
+    
+    def get_object(self):
+        """Ensure users can only delete their own profile or is staff."""
+        petsitter_id = self.kwargs.get('user_id')
+        petsitter = get_object_or_404(PetSitter, user_id=petsitter_id)
+        
+        # Check if user is deleting their own profile or is staff
+        if petsitter.user.id != self.request.user.id and not self.request.user.is_staff:
+            self.permission_denied(
+                self.request,
+                message="You don't have permission to delete this petsitter."
+            )
+        
+        return petsitter
+    
+    @extend_schema(
+        summary="Delete petsitter account",
+        description="Soft delete a petsitter account by deactivating it (sets is_active to False).",
+        responses={
+            204: OpenApiResponse(
+                description="PetSitter deactivated successfully"
+            ),
+            403: OpenApiResponse(
+                description="Forbidden - can only delete own profile"
+            ),
+            404: OpenApiResponse(
+                description="PetSitter not found"
+            )
+        },
+        tags=['PetSitters']
+    )
+    def delete(self, request, *args, **kwargs):
+        """Handle DELETE request - performs soft delete."""
+        petsitter = self.get_object()
+        
+        # Soft delete - just deactivate the user
+        petsitter.user.is_active = False
+        petsitter.user.save()
+        
+        return Response(
+            {'message': 'PetSitter account deactivated successfully.'},
+            status=status.HTTP_204_NO_CONTENT
         )

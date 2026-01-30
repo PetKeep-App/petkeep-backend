@@ -110,8 +110,52 @@ class Customer(models.Model):
         return self.user.is_active
 
 
+class AnimalType(models.Model):
+    """Animal types that petsitters can care for."""
+    
+    ANIMAL_CHOICES = [
+        ('dog', 'Cachorro'),
+        ('cat', 'Gato'),
+        ('bird', 'Pássaro'),
+        ('rabbit', 'Coelho'),
+        ('chicken', 'Galinha'),
+        ('hamster', 'Hamster'),
+        ('other', 'Outros'),
+    ]
+    
+    animal_type = models.CharField(max_length=20, choices=ANIMAL_CHOICES, unique=True)
+    
+    class Meta:
+        db_table = 'animal_types'
+        verbose_name = 'Animal Type'
+        verbose_name_plural = 'Animal Types'
+    
+    def __str__(self):
+        return self.get_animal_type_display()
+
+
+class ServiceType(models.Model):
+    """Service types that petsitters can offer."""
+    
+    SERVICE_CHOICES = [
+        ('keepsitter', 'KeepSitter'),
+        ('keephost', 'KeepHost'),
+        ('keepwalk', 'KeepWalk'),
+    ]
+    
+    service_type = models.CharField(max_length=20, choices=SERVICE_CHOICES, unique=True)
+    
+    class Meta:
+        db_table = 'service_types'
+        verbose_name = 'Service Type'
+        verbose_name_plural = 'Service Types'
+    
+    def __str__(self):
+        return self.get_service_type_display()
+
+
 class PetSitter(models.Model):
-    """PetSitter profile model - to be implemented in the future."""
+    """PetSitter profile model."""
     
     user = models.OneToOneField(
         User,
@@ -120,8 +164,37 @@ class PetSitter(models.Model):
         related_name='petsitter_profile'
     )
     
-    # PetSitter specific fields will be added here
-    # For example: bio, hourly_rate, available_services, certifications, etc.
+    # PetSitter specific fields
+    location = models.CharField(
+        max_length=255, 
+        blank=True,
+        default='',
+        help_text='Location/Address of the petsitter'
+    )
+    about = models.TextField(
+        blank=True,
+        default='',
+        help_text='About the petsitter, their experience, etc.'
+    )
+    other_animals = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        help_text='Other animals if "Outros" is selected'
+    )
+    
+    # Many-to-many relationships
+    animal_types = models.ManyToManyField(
+        AnimalType,
+        related_name='petsitters',
+        help_text='Types of animals the petsitter can care for'
+    )
+    
+    service_types = models.ManyToManyField(
+        ServiceType,
+        related_name='petsitters',
+        help_text='Services offered by the petsitter'
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -135,3 +208,19 @@ class PetSitter(models.Model):
     
     def __str__(self):
         return f"PetSitter: {self.user.full_name}"
+    
+    @property
+    def email(self):
+        return self.user.email
+    
+    @property
+    def full_name(self):
+        return self.user.full_name
+    
+    @property
+    def phone(self):
+        return self.user.phone
+    
+    @property
+    def is_active(self):
+        return self.user.is_active
