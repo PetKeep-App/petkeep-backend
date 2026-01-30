@@ -31,7 +31,7 @@ build:
 
 up:
 	@echo "🚀 Iniciando os containers..."
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) up
 	@echo "✅ Containers iniciados! Backend disponível em http://localhost:8080"
 
 down:
