@@ -2,9 +2,13 @@ from rest_framework import status, generics, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
+from rest_framework.authtoken.models import Token
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+from django.contrib.auth import login, logout
 from django.shortcuts import get_object_or_404
 from .serializers import (
+    LoginSerializer,
+    UserSerializer,
     CustomerSignupSerializer, 
     CustomerSerializer, 
     CustomerUpdateSerializer,
@@ -16,6 +20,146 @@ from .serializers import (
 from .models import Customer, User, PetSitter
 
 
+# ============================================================================
+# AUTHENTICATION VIEWS
+# ============================================================================
+
+class LoginView(generics.GenericAPIView):
+    """
+    API endpoint for user login (Customer or PetSitter).
+    
+    Authenticates users and creates a session.
+    No authentication is required for this endpoint.
+    """
+    
+    serializer_class = LoginSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication to avoid CSRF
+    
+    @extend_schema(
+        summary="User login",
+        description="Authenticate user with email and password. Works for both Customers and PetSitters.",
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=UserSerializer,
+                description="Login successful"
+            ),
+            400: OpenApiResponse(
+                description="Bad request - validation errors"
+            ),
+            401: OpenApiResponse(
+                description="Invalid credentials"
+            )
+        },
+        tags=['Authentication']
+    )
+    def post(self, request, *args, **kwargs):
+        """Handle login POST request."""
+        serializer = self.get_serializer(
+            data=request.data,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            login(request, user)
+            
+            # Get or create token for the user
+            token, created = Token.objects.get_or_create(user=user)
+            
+            # Return user data with token
+            user_serializer = UserSerializer(user)
+            return Response(
+                {
+                    'message': 'Login successful.',
+                    'token': token.key,
+                    'user': user_serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class LogoutView(generics.GenericAPIView):
+    """
+    API endpoint for user logout.
+    
+    Logs out the authenticated user and destroys the session.
+    Requires authentication.
+    """
+    
+    permission_classes = [IsAuthenticated]
+    serializer_class = None  # No serializer needed for logout
+    
+    @extend_schema(
+        summary="User logout",
+        description="Logout the authenticated user and destroy the session.",
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                description="Logout successful"
+            ),
+            401: OpenApiResponse(
+                description="Unauthorized - not authenticated"
+            )
+        },
+        tags=['Authentication']
+    )
+    def post(self, request, *args, **kwargs):
+        """Handle logout POST request."""
+        # Delete the user's token
+        try:
+            request.user.auth_token.delete()
+        except (AttributeError, Token.DoesNotExist):
+            pass
+        
+        logout(request)
+        return Response(
+            {'message': 'Logout successful.'},
+            status=status.HTTP_200_OK
+        )
+
+
+class CurrentUserView(generics.RetrieveAPIView):
+    """
+    API endpoint to get current authenticated user information.
+    
+    Returns detailed information about the logged-in user.
+    Requires authentication.
+    """
+    
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Get current user",
+        description="Retrieve detailed information about the currently authenticated user.",
+        responses={
+            200: OpenApiResponse(
+                response=UserSerializer,
+                description="Current user information"
+            ),
+            401: OpenApiResponse(
+                description="Unauthorized - not authenticated"
+            )
+        },
+        tags=['Authentication']
+    )
+    def get(self, request, *args, **kwargs):
+        """Get current user information."""
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+
+
+# ============================================================================
+# CUSTOMER VIEWS
+# ============================================================================
+
 class CustomerSignupView(generics.CreateAPIView):
     """
     API endpoint for customer registration.
@@ -26,6 +170,7 @@ class CustomerSignupView(generics.CreateAPIView):
     
     serializer_class = CustomerSignupSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication to avoid CSRF
     
     @extend_schema(
         summary="Register a new customer",
@@ -307,6 +452,7 @@ class PetSitterSignupView(generics.CreateAPIView):
     
     serializer_class = PetSitterSignupSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []  # Disable authentication to avoid CSRF
     
     @extend_schema(
         summary="Register a new petsitter",
