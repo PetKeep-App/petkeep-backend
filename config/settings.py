@@ -195,7 +195,7 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000',
+    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8081,http://127.0.0.1:8081',
     cast=Csv()
 )
 
